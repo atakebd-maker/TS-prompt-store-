@@ -31,6 +31,11 @@
       "token": "a3dec9feb15a59d0bae053d9e1fb27063ef3409a296c4bc7c5afe235c156e8bb",
       "adminId": "admin-1",
       "expiresAt": 1791945420570
+    },
+    {
+      "token": "b4970704ccbf91b0d5cdb1665c6bc5527aa0a694bf0df6f56fdae393d3b36817",
+      "adminId": "admin-1",
+      "expiresAt": 1791945880129
     }
   ],
   "categories": [
@@ -77,5 +82,22 @@
       "created_at": "2026-10-13T01:28:40.003Z"
     }
   ],
-  "posts": []
+  "posts": [
+    {
+      "id": "post-1791859485159-ba4aae07",
+      "title": "Test Prompt",
+      "slug": "test-prompt",
+      "category_id": "cat-photo",
+      "category_name": "AI Photo Prompts",
+      "featured_image_url": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe",
+      "prompt_text": "A beautiful test prompt",
+      "description": "",
+      "search_keywords": "",
+      "status": "published",
+      "is_sample": false,
+      "created_at": "2026-10-13T02:44:45.159Z",
+      "updated_at": "2026-10-13T02:44:45.159Z",
+      "published_at": "2026-10-13T02:44:45.159Z"
+    }
+  ]
 }

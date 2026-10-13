@@ -38,8 +38,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Content-Type', 'application/json');
   }
 
+  // Add cache control headers to prevent stale 304 or cached empty results
+  headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  headers.set('Pragma', 'no-cache');
+
   const response = await fetch(endpoint, {
     ...options,
+    cache: 'no-store',
     headers
   });
 
@@ -62,20 +67,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 export const api = {
   // Public APIs
   async getCategories(): Promise<Category[]> {
-    return request<Category[]>('/api/categories');
+    return request<Category[]>(`/api/categories?_t=${Date.now()}`);
   },
 
   async getPosts(category?: string, search?: string): Promise<PromptPost[]> {
     const params = new URLSearchParams();
     if (category && category !== 'all') params.append('category', category);
     if (search && search.trim()) params.append('search', search.trim());
+    params.append('_t', Date.now().toString());
 
     const qs = params.toString();
     return request<PromptPost[]>(`/api/posts${qs ? `?${qs}` : ''}`);
   },
 
   async getPostBySlug(slug: string): Promise<PostDetailResponse> {
-    return request<PostDetailResponse>(`/api/posts/${encodeURIComponent(slug)}`);
+    return request<PostDetailResponse>(`/api/posts/${encodeURIComponent(slug)}?_t=${Date.now()}`);
   },
 
   // Admin APIs
