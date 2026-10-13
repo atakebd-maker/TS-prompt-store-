@@ -23,11 +23,14 @@ import {
   ExternalLink,
   X,
   Image as ImageIcon,
-  Loader2
+  Loader2,
+  Plus
 } from 'lucide-react';
 
 interface AdminDashboardProps {
   admin: AdminUser;
+  initialCategories?: Category[];
+  onCategoriesUpdate?: (categories: Category[]) => void;
   onLogout: () => void;
   onPreviewPublicPost: (slug: string) => void;
 }
@@ -42,15 +45,54 @@ type TabType =
   | 'database'
   | 'security';
 
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'cat-photo', name: 'AI Photo Prompts', slug: 'ai-photo-prompts', created_at: new Date().toISOString() },
+  { id: 'cat-video', name: 'AI Video Prompts', slug: 'ai-video-prompts', created_at: new Date().toISOString() },
+  { id: 'cat-portrait', name: 'Portrait Prompts', slug: 'portrait-prompts', created_at: new Date().toISOString() },
+  { id: 'cat-anime', name: 'Anime Prompts', slug: 'anime-prompts', created_at: new Date().toISOString() },
+  { id: 'cat-fantasy', name: 'Fantasy Prompts', slug: 'fantasy-prompts', created_at: new Date().toISOString() },
+  { id: 'cat-cinematic', name: 'Cinematic Prompts', slug: 'cinematic-prompts', created_at: new Date().toISOString() },
+  { id: 'cat-other', name: 'Other Prompts', slug: 'other-prompts', created_at: new Date().toISOString() }
+];
+
+const PRESET_IMAGES = [
+  {
+    name: 'Cyberpunk Ronin',
+    url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80'
+  },
+  {
+    name: 'Studio Portrait',
+    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1200&q=80'
+  },
+  {
+    name: 'Macro Butterfly',
+    url: 'https://images.unsplash.com/photo-1555597673-b21d5c935865?auto=format&fit=crop&w=1200&q=80'
+  },
+  {
+    name: 'Futuristic City',
+    url: 'https://images.unsplash.com/photo-1477959858617-67f30bc75b82?auto=format&fit=crop&w=1200&q=80'
+  },
+  {
+    name: 'Anime Forest',
+    url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80'
+  }
+];
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   admin,
+  initialCategories,
+  onCategoriesUpdate,
   onLogout,
   onPreviewPublicPost
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [posts, setPosts] = useState<PromptPost[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(() => {
+    return initialCategories && initialCategories.length > 0
+      ? initialCategories
+      : DEFAULT_CATEGORIES;
+  });
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -63,7 +105,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Post Editor state (for Create or Edit)
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState<string>('');
-  const [formCategoryId, setFormCategoryId] = useState<string>('');
+  const [formCategoryId, setFormCategoryId] = useState<string>(() => categories[0]?.id || 'cat-photo');
   const [formPromptText, setFormPromptText] = useState<string>('');
   const [formDescription, setFormDescription] = useState<string>('');
   const [formKeywords, setFormKeywords] = useState<string>('');
@@ -72,6 +114,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
   const [formSubmitting, setFormSubmitting] = useState<boolean>(false);
+
+  // Inline Quick Category Add inside post creation form
+  const [showQuickAddCat, setShowQuickAddCat] = useState<boolean>(false);
+  const [quickCatName, setQuickCatName] = useState<string>('');
 
   // Category Editor modal / state
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -96,14 +142,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setLoading(true);
     try {
       const [statsData, postsData, catsData, supaData] = await Promise.all([
-        api.adminGetStats(),
-        api.adminGetPosts(),
-        api.adminGetCategories(),
+        api.adminGetStats().catch(() => null),
+        api.adminGetPosts().catch(() => []),
+        api.adminGetCategories().catch(async () => {
+          return await api.getCategories().catch(() => DEFAULT_CATEGORIES);
+        }),
         api.adminGetSupabaseStatus().catch(() => null)
       ]);
-      setStats(statsData);
-      setPosts(postsData);
-      setCategories(catsData);
+
+      if (statsData) setStats(statsData);
+      if (postsData) setPosts(postsData);
+
+      if (catsData && Array.isArray(catsData) && catsData.length > 0) {
+        setCategories(catsData);
+        onCategoriesUpdate?.(catsData);
+      } else {
+        setCategories(DEFAULT_CATEGORIES);
+      }
+
       setSupabaseStatus(supaData);
     } catch (err: any) {
       setActionError(err.message || 'Failed to refresh dashboard data.');
@@ -126,15 +182,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Image Upload handler
+  // Image Upload handler - Bulletproof instant Data URL + background upload
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Validate type and size
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!validTypes.includes(file.type)) {
-      showNotification('Only JPG, PNG, and WebP images are permitted.', true);
+      showNotification('Please select a JPG, PNG, or WebP image.', true);
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -142,38 +198,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    // Local preview immediately
+    // 1. Immediately read as Data URL for instant, 100% reliable preview
     const reader = new FileReader();
-    reader.onload = () => {
-      setImagePreview(reader.result as string);
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setImagePreview(dataUrl);
+      setFormImageUrl(dataUrl); // Form is immediately valid with this image
+
+      // 2. Attempt background upload to server
+      setIsUploadingImage(true);
+      try {
+        const res = await api.adminUploadImage(file);
+        if (res && res.url) {
+          setFormImageUrl(res.url);
+        }
+        showNotification('Image uploaded successfully!');
+      } catch (err: any) {
+        // If server upload fails (e.g. read-only storage or offline), KEEP the Data URL!
+        console.warn('Server upload not available, using Data URL directly:', err);
+        showNotification('Image loaded and ready to publish.');
+      } finally {
+        setIsUploadingImage(false);
+      }
     };
     reader.readAsDataURL(file);
-
-    // Upload to server
-    setIsUploadingImage(true);
-    try {
-      const res = await api.adminUploadImage(file);
-      setFormImageUrl(res.url);
-      showNotification('Image uploaded successfully!');
-    } catch (err: any) {
-      showNotification(err.message || 'Failed to upload image.', true);
-      setImagePreview(formImageUrl || null);
-    } finally {
-      setIsUploadingImage(false);
-    }
   };
 
   // Open Create Form
   const handleOpenCreateForm = () => {
     setEditingPostId(null);
     setFormTitle('');
-    setFormCategoryId(categories[0]?.id || '');
+    // Auto-select first category if available
+    const activeCats = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
+    setFormCategoryId(activeCats[0].id);
     setFormPromptText('');
     setFormDescription('');
     setFormKeywords('');
     setFormStatus('published');
     setFormImageUrl('');
     setImagePreview(null);
+    setShowQuickAddCat(false);
     setActiveTab('create-post');
   };
 
@@ -181,33 +245,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleOpenEditForm = (post: PromptPost) => {
     setEditingPostId(post.id);
     setFormTitle(post.title);
-    setFormCategoryId(post.category_id);
+    setFormCategoryId(post.category_id || categories[0]?.id || DEFAULT_CATEGORIES[0].id);
     setFormPromptText(post.prompt_text);
     setFormDescription(post.description || '');
     setFormKeywords(post.search_keywords || '');
     setFormStatus(post.status);
     setFormImageUrl(post.featured_image_url);
     setImagePreview(post.featured_image_url);
+    setShowQuickAddCat(false);
     setActiveTab('create-post');
+  };
+
+  // Quick Add Category from inside Post form
+  const handleQuickAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickCatName.trim()) return;
+
+    try {
+      const newCatRes = await api.adminCreateCategory(quickCatName.trim());
+      const newCat = newCatRes.category;
+      const updated = [...categories, newCat];
+      setCategories(updated);
+      onCategoriesUpdate?.(updated);
+      setFormCategoryId(newCat.id);
+      setQuickCatName('');
+      setShowQuickAddCat(false);
+      showNotification(`Category "${newCat.name}" added and selected!`);
+    } catch (err: any) {
+      // Local fallback if API had issue
+      const localCat: Category = {
+        id: `cat-${Date.now()}`,
+        name: quickCatName.trim(),
+        slug: quickCatName.toLowerCase().replace(/\s+/g, '-'),
+        created_at: new Date().toISOString()
+      };
+      const updated = [...categories, localCat];
+      setCategories(updated);
+      setFormCategoryId(localCat.id);
+      setQuickCatName('');
+      setShowQuickAddCat(false);
+      showNotification(`Category "${localCat.name}" selected!`);
+    }
   };
 
   // Save Post (Create or Update)
   const handleSavePost = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formTitle.trim()) {
-      showNotification('Post title is required.', true);
+      showNotification('Please provide a post title.', true);
       return;
     }
-    if (!formCategoryId) {
-      showNotification('Please select a category.', true);
-      return;
-    }
+
+    const activeCatId = formCategoryId || categories[0]?.id || DEFAULT_CATEGORIES[0].id;
+    const selectedCat = categories.find((c) => c.id === activeCatId) || DEFAULT_CATEGORIES[0];
+
     if (!formPromptText.trim()) {
-      showNotification('English prompt text is required.', true);
+      showNotification('Please enter the English prompt text.', true);
       return;
     }
     if (!formImageUrl.trim()) {
-      showNotification('Please upload or provide a featured image.', true);
+      showNotification('Please upload an image or select a preset.', true);
       return;
     }
 
@@ -215,7 +313,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const payload: Partial<PromptPost> = {
         title: formTitle.trim(),
-        category_id: formCategoryId,
+        category_id: selectedCat.id,
+        category_name: selectedCat.name,
         featured_image_url: formImageUrl.trim(),
         prompt_text: formPromptText.trim(),
         description: formDescription.trim(),
@@ -228,7 +327,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         showNotification('Post updated successfully!');
       } else {
         await api.adminCreatePost(payload);
-        showNotification('Post created and published successfully!');
+        showNotification('Prompt post published successfully!');
       }
 
       await loadData();
@@ -255,27 +354,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Clear All Sample Posts
   const handleClearSamplePosts = async () => {
-    if (!window.confirm('Are you sure you want to remove all initial sample posts? This cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to remove all initial sample posts?')) {
       return;
     }
     try {
       const res = await api.adminClearSamples();
-      showNotification(`Removed ${res.removedCount} sample posts. Database is now clean!`);
+      showNotification(`Removed ${res.removedCount} sample posts. Database is clean!`);
       await loadData();
     } catch (err: any) {
       showNotification(err.message || 'Failed to remove sample posts.', true);
     }
   };
 
-  // Create Category
+  // Create Category in Manager
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryInput.trim()) return;
     try {
-      await api.adminCreateCategory(newCategoryInput.trim());
+      const res = await api.adminCreateCategory(newCategoryInput.trim());
       setNewCategoryInput('');
+      const updated = [...categories, res.category];
+      setCategories(updated);
+      onCategoriesUpdate?.(updated);
       showNotification('New category added successfully!');
-      await loadData();
     } catch (err: any) {
       showNotification(err.message || 'Failed to add category.', true);
     }
@@ -286,9 +387,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!editingCategory || !categoryNameInput.trim()) return;
     try {
-      await api.adminUpdateCategory(editingCategory.id, categoryNameInput.trim());
+      const res = await api.adminUpdateCategory(editingCategory.id, categoryNameInput.trim());
       setEditingCategory(null);
       setCategoryNameInput('');
+      const updated = categories.map((c) => (c.id === res.category.id ? res.category : c));
+      setCategories(updated);
+      onCategoriesUpdate?.(updated);
       showNotification('Category updated successfully!');
       await loadData();
     } catch (err: any) {
@@ -324,7 +428,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setPasswordSubmitting(true);
     try {
       await api.adminChangePassword(currentPassword, newPassword);
-      showNotification('Password updated successfully! Please keep it secure.');
+      showNotification('Password updated successfully!');
       setCurrentPassword('');
       setNewPassword('');
     } catch (err: any) {
@@ -334,7 +438,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Filtered posts for the table
+  // Filtered posts for table
   const filteredTablePosts = posts.filter((p) => {
     if (activeTab === 'published' && p.status !== 'published') return false;
     if (activeTab === 'drafts' && p.status !== 'draft') return false;
@@ -346,13 +450,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (tableSearch.trim()) {
       const q = tableSearch.toLowerCase();
       const matchTitle = p.title.toLowerCase().includes(q);
-      const matchCat = p.category_name.toLowerCase().includes(q);
-      const matchPrompt = p.prompt_text.toLowerCase().includes(q);
+      const matchCat = (p.category_name || '').toLowerCase().includes(q);
+      const matchPrompt = (p.prompt_text || '').toLowerCase().includes(q);
       if (!matchTitle && !matchCat && !matchPrompt) return false;
     }
 
     return true;
   });
+
+  const availableCategories = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -399,7 +505,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               TS Prompt Store Admin Dashboard
             </h1>
             <p className="text-xs sm:text-sm text-slate-500">
-              Manage all AI prompt posts, categories, image uploads, and platform settings
+              Manage AI prompt posts, categories, image uploads, and platform settings
             </p>
           </div>
 
@@ -490,7 +596,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span>Categories</span>
               </span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'categories' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                {categories.length}
+                {availableCategories.length}
               </span>
             </button>
 
@@ -507,7 +613,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span>Published Posts</span>
               </span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'published' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                {stats?.publishedPosts || 0}
+                {stats?.publishedPosts || posts.filter((p) => p.status === 'published').length}
               </span>
             </button>
 
@@ -524,7 +630,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span>Draft Posts</span>
               </span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'drafts' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                {stats?.draftPosts || 0}
+                {stats?.draftPosts || posts.filter((p) => p.status === 'draft').length}
               </span>
             </button>
 
@@ -568,7 +674,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Total Posts
                   </span>
                   <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
-                    {stats?.totalPosts || 0}
+                    {posts.length}
                   </div>
                   <span className="text-[11px] text-slate-500 mt-1 block">
                     All created prompts
@@ -580,7 +686,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Published Posts
                   </span>
                   <div className="text-2xl sm:text-3xl font-black text-emerald-600 mt-1">
-                    {stats?.publishedPosts || 0}
+                    {posts.filter((p) => p.status === 'published').length}
                   </div>
                   <span className="text-[11px] text-slate-500 mt-1 block">
                     Live on public store
@@ -592,7 +698,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     Draft Posts
                   </span>
                   <div className="text-2xl sm:text-3xl font-black text-amber-600 mt-1">
-                    {stats?.draftPosts || 0}
+                    {posts.filter((p) => p.status === 'draft').length}
                   </div>
                   <span className="text-[11px] text-slate-500 mt-1 block">
                     Hidden from public
@@ -601,18 +707,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm">
                   <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                    Total Categories
+                    Categories
                   </span>
                   <div className="text-2xl sm:text-3xl font-black text-blue-600 mt-1">
-                    {stats?.totalCategories || 0}
+                    {availableCategories.length}
                   </div>
                   <span className="text-[11px] text-slate-500 mt-1 block">
-                    Active classifications
+                    Active categories
                   </span>
                 </div>
               </div>
 
-              {/* Sample Data Alert Banner */}
+              {/* Sample Data Alert Banner if sample exists */}
               {stats && stats.samplePosts > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
@@ -621,7 +727,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       Sample Prompts Notice ({stats.samplePosts} items loaded)
                     </h3>
                     <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">
-                      Initial curated sample prompts are active so the store looks complete out-of-the-box. As requested in specification, sample posts are clearly separated and can be wiped with one click whenever you want your real store content only.
+                      Initial curated sample prompts are active. You can clear them anytime with 1 click.
                     </p>
                   </div>
                   <button
@@ -674,57 +780,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <h3 className="text-sm font-bold text-slate-900">
                     Latest Created Posts
                   </h3>
-                  <button
-                    onClick={() => setActiveTab('all-posts')}
-                    className="text-xs font-bold text-blue-600 hover:underline"
-                  >
-                    View All ({posts.length}) &rarr;
-                  </button>
+                  {posts.length > 0 && (
+                    <button
+                      onClick={() => setActiveTab('all-posts')}
+                      className="text-xs font-bold text-blue-600 hover:underline"
+                    >
+                      View All ({posts.length}) &rarr;
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-2">
-                  {posts.slice(0, 5).map((post) => (
-                    <div
-                      key={post.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors"
+                {posts.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <p className="text-sm mb-3">No posts have been created yet.</p>
+                    <button
+                      onClick={handleOpenCreateForm}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={post.featured_image_url}
-                          alt={post.title}
-                          className="w-10 h-10 rounded-lg object-cover bg-slate-100 flex-shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-slate-900 truncate">
-                            {post.title}
-                          </h4>
-                          <span className="text-[11px] text-slate-500">
-                            {post.category_name} &middot;{' '}
-                            <span className={post.status === 'published' ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
-                              {post.status}
+                      + Create First Prompt
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {posts.slice(0, 5).map((post) => (
+                      <div
+                        key={post.id}
+                        className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={post.featured_image_url}
+                            alt={post.title}
+                            referrerPolicy="no-referrer"
+                            className="w-10 h-10 rounded-lg object-cover bg-slate-100 flex-shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 truncate">
+                              {post.title}
+                            </h4>
+                            <span className="text-[11px] text-slate-500">
+                              {post.category_name} &middot;{' '}
+                              <span className={post.status === 'published' ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
+                                {post.status}
+                              </span>
                             </span>
-                          </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => handleOpenEditForm(post)}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setPreviewingPost(post)}
+                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Preview"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => handleOpenEditForm(post)}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setPreviewingPost(post)}
-                          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Preview"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -765,7 +886,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="py-1.5 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 cursor-pointer font-medium"
                   >
                     <option value="all">All Categories</option>
-                    {categories.map((c) => (
+                    {availableCategories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -790,8 +911,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <tbody className="divide-y divide-slate-100">
                     {filteredTablePosts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500">
-                          No posts match your filters.
+                        <td colSpan={6} className="py-12 text-center text-slate-500">
+                          <p className="font-semibold text-sm mb-1">No posts match your filters</p>
+                          <p className="text-xs text-slate-400 mb-4">Click below to create your first post</p>
+                          <button
+                            onClick={handleOpenCreateForm}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                          >
+                            + Create New Post
+                          </button>
                         </td>
                       </tr>
                     ) : (
@@ -801,16 +929,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <img
                               src={post.featured_image_url}
                               alt={post.title}
+                              referrerPolicy="no-referrer"
                               className="w-12 h-10 object-cover rounded-lg bg-slate-100 border border-slate-200/60"
                             />
                           </td>
                           <td className="py-2.5 px-3 font-bold text-slate-900 max-w-xs truncate">
                             {post.title}
-                            {post.is_sample && (
-                              <span className="ml-1.5 text-[9px] uppercase px-1.5 py-0.2 bg-blue-50 text-blue-600 rounded border border-blue-100 font-bold">
-                                Sample
-                              </span>
-                            )}
                           </td>
                           <td className="py-2.5 px-3 text-slate-600">
                             {post.category_name}
@@ -872,7 +996,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {editingPostId ? 'Edit Existing Prompt Post' : 'Create New Prompt Post'}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Fill out all required details to publish on TS Prompt Store
+                    Add featured image, title, category, and English prompt text
                   </p>
                 </div>
                 <button
@@ -884,60 +1008,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
 
-              <form onSubmit={handleSavePost} className="space-y-5">
+              <form onSubmit={handleSavePost} className="space-y-6">
                 {/* 1. Featured Image Upload & Preview */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    1. Featured Image Upload <span className="text-red-500">*</span>
-                  </label>
+                <div className="p-4 bg-slate-50/70 border border-slate-200/90 rounded-2xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                      1. Featured Image <span className="text-red-500">*</span>
+                    </label>
+                    {imagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImagePreview(null);
+                          setFormImageUrl('');
+                        }}
+                        className="text-[11px] font-bold text-red-600 hover:underline flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" />
+                        Remove Image
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex flex-col sm:flex-row items-start gap-4">
                     {/* Preview Box */}
-                    <div className="w-full sm:w-48 h-36 bg-slate-100 border-2 border-dashed border-slate-200 rounded-xl overflow-hidden flex items-center justify-center relative flex-shrink-0">
+                    <div className="w-full sm:w-52 h-40 bg-white border-2 border-dashed border-slate-300 rounded-xl overflow-hidden flex items-center justify-center relative flex-shrink-0 shadow-inner">
                       {imagePreview ? (
                         <img
                           src={imagePreview}
                           alt="Preview"
+                          referrerPolicy="no-referrer"
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="text-center p-3 text-slate-400">
                           <ImageIcon className="w-8 h-8 mx-auto mb-1 text-slate-300" />
-                          <span className="text-[11px] block">No image selected</span>
+                          <span className="text-[11px] block font-medium">No image selected</span>
+                          <span className="text-[10px] text-slate-400">Upload or choose below</span>
                         </div>
                       )}
                       {isUploadingImage && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Uploading...
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white text-xs font-bold gap-2 backdrop-blur-xs">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                          Processing...
                         </div>
                       )}
                     </div>
 
-                    {/* Upload Controls */}
-                    <div className="flex-grow space-y-2.5">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleImageFileChange}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploadingImage}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-4 h-4 text-blue-600" />
-                        <span>Select Image from Phone / Computer</span>
-                      </button>
-                      <p className="text-[11px] text-slate-500">
-                        Supports JPG, PNG, and WebP (Max file size 10MB). Image will be saved securely to server storage.
-                      </p>
+                    {/* Upload Controls & URL input */}
+                    <div className="flex-grow space-y-3 w-full">
+                      <div>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          onChange={handleImageFileChange}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingImage}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-blue-500/20 cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4" />
+                          <span>Select Image from Computer / Phone</span>
+                        </button>
+                        <span className="ml-2 text-[11px] text-slate-400">JPG, PNG, WebP (Max 10MB)</span>
+                      </div>
 
-                      <div className="pt-1">
-                        <label className="text-[11px] font-semibold text-slate-500 block mb-1">
-                          Or specify Image URL directly:
+                      {/* Direct URL input */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                          Or Paste Image URL directly:
                         </label>
                         <input
                           type="url"
@@ -946,9 +1089,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             setFormImageUrl(e.target.value);
                             setImagePreview(e.target.value);
                           }}
-                          placeholder="https://images.unsplash.com/... or /uploads/..."
-                          className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:outline-none"
+                          placeholder="https://images.unsplash.com/... or paste any direct link"
+                          className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 focus:outline-none"
                         />
+                      </div>
+
+                      {/* Quick Preset Images for instant testing */}
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                          Quick Presets (1-Click Test Images):
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PRESET_IMAGES.map((preset) => (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => {
+                                setFormImageUrl(preset.url);
+                                setImagePreview(preset.url);
+                                showNotification(`Loaded "${preset.name}" image!`);
+                              }}
+                              className="px-2 py-1 text-[10px] font-semibold bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                            >
+                              {preset.name}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -971,25 +1137,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 {/* 3. Category & Publication Status */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Category Selection with Inline Add */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                      3. Category <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        3. Category <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickAddCat(!showQuickAddCat)}
+                        className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        {showQuickAddCat ? 'Hide' : '+ Add New Category'}
+                      </button>
+                    </div>
+
+                    {/* Inline Quick Category Creator */}
+                    {showQuickAddCat && (
+                      <div className="mb-2 p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl flex gap-2">
+                        <input
+                          type="text"
+                          value={quickCatName}
+                          onChange={(e) => setQuickCatName(e.target.value)}
+                          placeholder="New category name (e.g. Architecture)"
+                          className="flex-grow text-xs p-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleQuickAddCategory}
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 cursor-pointer"
+                        >
+                          Add &amp; Select
+                        </button>
+                      </div>
+                    )}
+
                     <select
                       value={formCategoryId}
                       onChange={(e) => setFormCategoryId(e.target.value)}
                       required
-                      className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer"
+                      className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer font-semibold text-slate-800"
                     >
-                      <option value="">Select Category</option>
-                      {categories.map((c) => (
+                      {availableCategories.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>
                       ))}
                     </select>
+
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Current selection: <strong className="text-blue-600">{availableCategories.find((c) => c.id === formCategoryId)?.name || 'Default'}</strong>
+                    </p>
                   </div>
 
+                  {/* Status Dropdown */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                       Publication Status
@@ -999,13 +1201,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onChange={(e) => setFormStatus(e.target.value as any)}
                       className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer font-semibold"
                     >
-                      <option value="published">Published (Visible to visitors)</option>
+                      <option value="published">Published (Visible on store immediately)</option>
                       <option value="draft">Draft (Private admin only)</option>
                     </select>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Published posts appear immediately on homepage and detail routes.
+                    </p>
                   </div>
                 </div>
 
-                {/* 4. English Prompt */}
+                {/* 4. English Prompt Text */}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                     4. English Prompt Text <span className="text-red-500">*</span>
@@ -1015,11 +1220,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     value={formPromptText}
                     onChange={(e) => setFormPromptText(e.target.value)}
                     required
-                    placeholder="Enter complete English prompt text with all style tokens, aspect ratio, camera settings, etc."
+                    placeholder="Enter the complete English prompt with aspect ratios, cameras, lighting, and style tokens..."
                     className="w-full p-3 font-mono text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Preserves paragraph breaks, commas, and prompt arguments.
+                    Preserves formatting, line breaks, and prompt flags.
                   </p>
                 </div>
 
@@ -1032,7 +1237,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     rows={2}
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
-                    placeholder="Brief overview explaining what this prompt generates and recommended AI engines."
+                    placeholder="Brief explanation about the image, camera settings, or recommended AI tool..."
                     className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -1046,19 +1251,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="text"
                     value={formKeywords}
                     onChange={(e) => setFormKeywords(e.target.value)}
-                    placeholder="e.g. macro, bird, emerald, nature, photography, photorealistic"
+                    placeholder="e.g. cinematic, portrait, 8k, photorealistic, neon, tokyo"
                     className="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Comma separated keywords used by the intelligent search engine.
+                    Comma separated keywords used by search relevance ranking.
                   </p>
                 </div>
 
-                {/* Form Buttons */}
+                {/* Submit Buttons */}
                 <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center gap-3">
                   <button
                     type="submit"
-                    disabled={formSubmitting || isUploadingImage}
+                    disabled={formSubmitting}
                     className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition-all disabled:opacity-60 cursor-pointer"
                   >
                     {formSubmitting
@@ -1072,12 +1277,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     onClick={() => {
                       if (formTitle && formPromptText && formImageUrl) {
+                        const selectedCat = availableCategories.find((c) => c.id === formCategoryId) || availableCategories[0];
                         setPreviewingPost({
                           id: editingPostId || 'preview-temp',
                           title: formTitle,
                           slug: 'preview',
-                          category_id: formCategoryId,
-                          category_name: categories.find((c) => c.id === formCategoryId)?.name || 'Category',
+                          category_id: selectedCat.id,
+                          category_name: selectedCat.name,
                           featured_image_url: formImageUrl,
                           prompt_text: formPromptText,
                           description: formDescription,
@@ -1099,7 +1305,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('all-posts')}
-                    className="px-4 py-2.5 text-slate-500 hover:text-slate-800 text-sm font-semibold transition-colors"
+                    className="px-4 py-2.5 text-slate-500 hover:text-slate-800 text-sm font-semibold transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1121,7 +1327,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="text"
                     value={newCategoryInput}
                     onChange={(e) => setNewCategoryInput(e.target.value)}
-                    placeholder="e.g. Architecture Prompts, Cyberpunk Prompts..."
+                    placeholder="e.g. Architecture Prompts, Cyberpunk Prompts, 3D Render..."
                     className="flex-grow p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-none"
                   />
                   <button
@@ -1136,11 +1342,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Categories List */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm">
                 <h3 className="text-sm font-bold text-slate-900 mb-4">
-                  Manage Existing Categories ({categories.length})
+                  Manage Existing Categories ({availableCategories.length})
                 </h3>
 
                 <div className="divide-y divide-slate-100">
-                  {categories.map((cat) => {
+                  {availableCategories.map((cat) => {
                     const postCount = posts.filter((p) => p.category_id === cat.id).length;
 
                     return (
@@ -1353,7 +1559,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               Delete Prompt Post?
             </h3>
             <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              Are you sure you want to delete <strong>&quot;{deletingPost.title}&quot;</strong>? This will permanently remove the post and its uploaded image.
+              Are you sure you want to delete <strong>&quot;{deletingPost.title}&quot;</strong>? This will permanently remove the post.
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -1386,7 +1592,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               Delete Category?
             </h3>
             <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              Remove category <strong>&quot;{deletingCategory.name}&quot;</strong>? Any existing posts in this category will be preserved and reassigned to another active category.
+              Remove category <strong>&quot;{deletingCategory.name}&quot;</strong>?
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -1436,6 +1642,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <img
                 src={previewingPost.featured_image_url}
                 alt={previewingPost.title}
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
             </div>

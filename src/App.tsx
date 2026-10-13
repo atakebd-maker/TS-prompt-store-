@@ -117,6 +117,8 @@ export default function App() {
     return (
       <AdminDashboard
         admin={adminUser}
+        initialCategories={categories}
+        onCategoriesUpdate={(newCats) => setCategories(newCats)}
         onLogout={async () => {
           await api.adminLogout();
           setAdminUser(null);

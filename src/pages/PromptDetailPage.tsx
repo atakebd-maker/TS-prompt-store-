@@ -171,11 +171,15 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
           <img
             src={post.featured_image_url}
             alt={post.title}
+            referrerPolicy="no-referrer"
             className="w-full max-h-[580px] object-contain sm:object-cover bg-slate-950/5 cursor-zoom-in transition-all"
             onClick={() => setLightboxOpen(true)}
             onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+              const img = e.target as HTMLImageElement;
+              const fallback = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22800%22%20height%3D%22500%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20fill%3D%22%23ffffff%22%20font-size%3D%2224%22%20font-family%3D%22sans-serif%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3ETS%20Prompt%20Image%3C%2Ftext%3E%3C%2Fsvg%3E';
+              if (img.src !== fallback) {
+                img.src = fallback;
+              }
             }}
           />
 

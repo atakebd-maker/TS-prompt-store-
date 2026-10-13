@@ -158,7 +158,18 @@ function readDb(): DatabaseSchema {
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const data = JSON.parse(content) as DatabaseSchema;
     // ensure required keys exist
-    if (!data.categories) data.categories = [];
+    if (!data.categories || data.categories.length === 0) {
+      data.categories = [
+        { id: 'cat-photo', name: 'AI Photo Prompts', slug: 'ai-photo-prompts', created_at: new Date().toISOString() },
+        { id: 'cat-video', name: 'AI Video Prompts', slug: 'ai-video-prompts', created_at: new Date().toISOString() },
+        { id: 'cat-portrait', name: 'Portrait Prompts', slug: 'portrait-prompts', created_at: new Date().toISOString() },
+        { id: 'cat-anime', name: 'Anime Prompts', slug: 'anime-prompts', created_at: new Date().toISOString() },
+        { id: 'cat-fantasy', name: 'Fantasy Prompts', slug: 'fantasy-prompts', created_at: new Date().toISOString() },
+        { id: 'cat-cinematic', name: 'Cinematic Prompts', slug: 'cinematic-prompts', created_at: new Date().toISOString() },
+        { id: 'cat-other', name: 'Other Prompts', slug: 'other-prompts', created_at: new Date().toISOString() }
+      ];
+      writeDb(data);
+    }
     if (!data.posts) data.posts = [];
     if (!data.sessions) data.sessions = [];
     return data;

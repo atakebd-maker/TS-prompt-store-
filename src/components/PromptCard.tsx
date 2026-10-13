@@ -33,11 +33,14 @@ export const PromptCard: React.FC<PromptCardProps> = ({
           src={post.featured_image_url}
           alt={post.title}
           loading="lazy"
+          referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
           onError={(e) => {
-            // Fallback placeholder image if URL fails
-            (e.target as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80';
+            const img = e.target as HTMLImageElement;
+            const fallback = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22400%22%20height%3D%22300%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20fill%3D%22%23ffffff%22%20font-size%3D%2218%22%20font-family%3D%22sans-serif%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3ETS%20Prompt%20Image%3C%2Ftext%3E%3C%2Fsvg%3E';
+            if (img.src !== fallback) {
+              img.src = fallback;
+            }
           }}
         />
 
