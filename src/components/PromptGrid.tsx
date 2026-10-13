@@ -63,7 +63,7 @@ export const PromptGrid: React.FC<PromptGridProps> = ({
         <p className="text-sm text-slate-500 mb-5 leading-relaxed">
           {searchQuery
             ? `We couldn't find any prompts matching "${searchQuery}". Try different keywords, styles, or category filters.`
-            : 'No prompts are published in this category yet. Check back soon!'}
+            : 'No prompt posts are published yet. New prompts will appear here once published by the administrator.'}
         </p>
         {onResetSearch && (
           <button
