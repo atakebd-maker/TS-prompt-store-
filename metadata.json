@@ -1,0 +1,6 @@
+{
+  "name": "TS Prompt Store",
+  "description": "Modern AI Photo Prompt and AI Video Prompt Sharing Platform with intelligent search and curated prompts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
