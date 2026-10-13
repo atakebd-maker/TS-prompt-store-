@@ -9,6 +9,8 @@ interface PromptGridProps {
   searchQuery: string;
   onOpenPost: (post: PromptPost) => void;
   onResetSearch?: () => void;
+  savedPostIds?: string[];
+  onToggleSave?: (post: PromptPost, e: React.MouseEvent) => void;
 }
 
 export const PromptGrid: React.FC<PromptGridProps> = ({
@@ -16,7 +18,9 @@ export const PromptGrid: React.FC<PromptGridProps> = ({
   loading,
   searchQuery,
   onOpenPost,
-  onResetSearch
+  onResetSearch,
+  savedPostIds = [],
+  onToggleSave
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -58,12 +62,12 @@ export const PromptGrid: React.FC<PromptGridProps> = ({
           <SearchX className="w-7 h-7" />
         </div>
         <h3 className="text-lg font-bold text-slate-900 mb-1">
-          No prompts found
+          কোন প্রম্পট পাওয়া যায়নি
         </h3>
         <p className="text-sm text-slate-500 mb-5 leading-relaxed">
           {searchQuery
-            ? `We couldn't find any prompts matching "${searchQuery}". Try different keywords, styles, or category filters.`
-            : 'No prompt posts are published yet. New prompts will appear here once published by the administrator.'}
+            ? `"${searchQuery}" এর সাথে মিলে এমন কোন প্রম্পট পাওয়া যায়নি। অন্যান্য কি-ওয়ার্ড বা ক্যাটাগরি ট্রাই করুন।`
+            : 'ওয়েবসাইটে এখনো কোন প্রম্পট পাবলিশ করা হয়নি। এডমিন প্যানেল থেকে পোস্ট যোগ করলে তা এখানে দেখতে পাবেন।'}
         </p>
         {onResetSearch && (
           <button
@@ -71,7 +75,7 @@ export const PromptGrid: React.FC<PromptGridProps> = ({
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
           >
             <Sparkles className="w-4 h-4" />
-            View All Prompts
+            সকল প্রম্পট দেখুন
           </button>
         )}
       </div>
@@ -87,6 +91,8 @@ export const PromptGrid: React.FC<PromptGridProps> = ({
           onOpen={onOpenPost}
           onQuickCopy={(prompt, e) => handleQuickCopy(prompt, e, post.id)}
           isCopied={copiedId === post.id}
+          isSaved={savedPostIds.includes(post.id)}
+          onToggleSave={onToggleSave}
         />
       ))}
     </div>

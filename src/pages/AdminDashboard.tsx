@@ -444,6 +444,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="text-xs text-slate-400 hidden md:inline">
               Admin: <strong className="text-slate-200">{admin.email}</strong>
             </span>
+            <a
+              href="/"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3 sm:py-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl text-xs sm:text-sm font-medium transition-colors cursor-pointer"
+              title="ওয়েবসাইট দেখুন"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span className="hidden sm:inline">View Website</span>
+            </a>
             <button
               onClick={() => handleOpenCreateForm()}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-colors cursor-pointer"

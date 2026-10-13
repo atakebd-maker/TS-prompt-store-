@@ -11,6 +11,8 @@ interface HomePageProps {
   onSelectCategory: (slug: string) => void;
   onOpenPost: (post: PromptPost) => void;
   onResetSearch: () => void;
+  savedPostIds?: string[];
+  onToggleSave?: (post: PromptPost, e: React.MouseEvent) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -19,7 +21,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   searchQuery,
   onSelectCategory,
   onOpenPost,
-  onResetSearch
+  onResetSearch,
+  savedPostIds = [],
+  onToggleSave
 }) => {
   const [posts, setPosts] = useState<PromptPost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -135,6 +139,8 @@ export const HomePage: React.FC<HomePageProps> = ({
           searchQuery={searchQuery}
           onOpenPost={onOpenPost}
           onResetSearch={onResetSearch}
+          savedPostIds={savedPostIds}
+          onToggleSave={onToggleSave}
         />
       )}
     </div>

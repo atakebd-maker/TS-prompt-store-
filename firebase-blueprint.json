@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "displayName", "role", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "AI prompt post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category_id": { "type": "string" },
+        "description": { "type": "string" },
+        "prompt": { "type": "string" },
+        "negative_prompt": { "type": "string" },
+        "image_url": { "type": "string" },
+        "ai_tool": { "type": "string" },
+        "model": { "type": "string" },
+        "status": { "type": "string", "enum": ["published", "draft"] },
+        "author_id": { "type": "string" },
+        "author_name": { "type": "string" },
+        "author_email": { "type": "string" },
+        "likes": { "type": "number" },
+        "views": { "type": "number" },
+        "copies": { "type": "number" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "title", "prompt", "image_url", "ai_tool", "status", "created_at"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Prompt category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" },
+        "count": { "type": "number" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "SavedPrompt": {
+      "title": "SavedPrompt",
+      "description": "Bookmarked prompt for a user",
+      "type": "object",
+      "properties": {
+        "promptId": { "type": "string" },
+        "title": { "type": "string" },
+        "image_url": { "type": "string" },
+        "ai_tool": { "type": "string" },
+        "savedAt": { "type": "string" }
+      },
+      "required": ["promptId", "title", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Collection of AI prompt posts"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Collection of categories"
+    },
+    "/users/{userId}/saved_prompts/{promptId}": {
+      "schema": "SavedPrompt",
+      "description": "User's saved prompts"
+    }
+  }
+}

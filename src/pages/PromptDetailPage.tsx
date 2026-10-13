@@ -5,18 +5,24 @@ import { CopyButton } from '../components/CopyButton.tsx';
 import { PlatformShortcuts } from '../components/PlatformShortcuts.tsx';
 import { PromptCard } from '../components/PromptCard.tsx';
 import { ImageModal } from '../components/ImageModal.tsx';
-import { ArrowLeft, Calendar, Tag, Maximize2, Share2, Check } from 'lucide-react';
+import { ArrowLeft, Calendar, Tag, Maximize2, Share2, Check, Bookmark } from 'lucide-react';
 
 interface PromptDetailPageProps {
   slug: string;
   onNavigateHome: () => void;
   onOpenPost: (post: PromptPost) => void;
+  isSaved?: boolean;
+  onToggleSave?: (post: PromptPost) => void;
+  savedPostIds?: string[];
 }
 
 export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
   slug,
   onNavigateHome,
-  onOpenPost
+  onOpenPost,
+  isSaved = false,
+  onToggleSave,
+  savedPostIds = []
 }) => {
   const [post, setPost] = useState<PromptPost | null>(null);
   const [related, setRelated] = useState<PromptPost[]>([]);
@@ -37,7 +43,6 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
           setPost(data.post);
           setRelated(data.related || []);
           setLoading(false);
-          // Dynamic SEO Document Title
           document.title = `${data.post.title} — TS Prompt Store`;
         }
       })
@@ -111,6 +116,8 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
       })
     : null;
 
+  const currentIsSaved = isSaved || savedPostIds.includes(post.id);
+
   return (
     <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
       {/* Back button and quick actions */}
@@ -120,26 +127,43 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
           className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors py-1"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Prompts</span>
+          <span>সকল প্রম্পট তালিকায় ফিরুন</span>
         </button>
 
-        <button
-          onClick={handleShare}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-          title="Share prompt link"
-        >
-          {shareCopied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-emerald-600">Link Copied!</span>
-            </>
-          ) : (
-            <>
-              <Share2 className="w-3.5 h-3.5" />
-              <span>Share</span>
-            </>
+        <div className="flex items-center gap-2">
+          {onToggleSave && (
+            <button
+              onClick={() => onToggleSave(post)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
+                currentIsSaved
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'text-slate-600 bg-slate-100 hover:bg-slate-200 border-slate-200/80'
+              }`}
+              title={currentIsSaved ? 'সংরক্ষিত থেকে সরান' : 'প্রম্পট সংরক্ষণ করুন'}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${currentIsSaved ? 'fill-current text-blue-600' : ''}`} />
+              <span>{currentIsSaved ? 'সংরক্ষিত' : 'সংরক্ষণ করুন'}</span>
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200/80"
+            title="শেয়ার করুন"
+          >
+            {shareCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-emerald-600">কপি হয়েছে!</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5" />
+                <span>শেয়ার</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* 1. Post title at the top */}
@@ -176,7 +200,8 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
             onClick={() => setLightboxOpen(true)}
             onError={(e) => {
               const img = e.target as HTMLImageElement;
-              const fallback = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22800%22%20height%3D%22500%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20fill%3D%22%23ffffff%22%20font-size%3D%2224%22%20font-family%3D%22sans-serif%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3ETS%20Prompt%20Image%3C%2Ftext%3E%3C%2Fsvg%3E';
+              const fallback =
+                'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22800%22%20height%3D%22500%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20fill%3D%22%23ffffff%22%20font-size%3D%2224%22%20font-family%3D%22sans-serif%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%3ETS%20Prompt%20Image%3C%2Ftext%3E%3C%2Fsvg%3E';
               if (img.src !== fallback) {
                 img.src = fallback;
               }
@@ -190,7 +215,7 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
             title="Inspect full image"
           >
             <Maximize2 className="w-3.5 h-3.5" />
-            <span>View Full Image</span>
+            <span>ছবি বড় করে দেখুন</span>
           </button>
         </div>
       </div>
@@ -228,13 +253,27 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
         </div>
       </div>
 
-      {/* 4. Prominent Copy Prompt button */}
-      <div className="mb-8">
+      {/* 4. Prominent Copy Prompt button & Save Button */}
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <CopyButton
           textToCopy={post.prompt_text}
-          buttonLabel="Copy Full Prompt"
-          className="w-full sm:w-auto"
+          buttonLabel="সম্পূর্ণ প্রম্পট কপি করুন (Copy Prompt)"
+          className="flex-grow sm:flex-grow-0"
         />
+        {onToggleSave && (
+          <button
+            type="button"
+            onClick={() => onToggleSave(post)}
+            className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all border ${
+              currentIsSaved
+                ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-xs'
+            }`}
+          >
+            <Bookmark className={`w-4 h-4 ${currentIsSaved ? 'fill-current text-blue-600' : ''}`} />
+            <span>{currentIsSaved ? 'সংরক্ষিত তালিকায় আছে' : 'সংরক্ষণ করুন (Save)'}</span>
+          </button>
+        )}
       </div>
 
       {/* 5. AI platform buttons below the copy button */}
@@ -260,13 +299,18 @@ export const PromptDetailPage: React.FC<PromptDetailPageProps> = ({
                 key={relPost.id}
                 post={relPost}
                 onOpen={onOpenPost}
+                isSaved={savedPostIds.includes(relPost.id)}
+                onToggleSave={onToggleSave ? (_, e) => {
+                  e?.stopPropagation();
+                  onToggleSave(relPost);
+                } : undefined}
               />
             ))}
           </div>
         ) : (
           <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200/60">
             <p className="text-sm font-medium text-slate-500">
-              No other prompts found in this category right now.
+              এই ক্যাটাগরিতে বর্তমানে অন্য কোন প্রম্পট নেই।
             </p>
           </div>
         )}
